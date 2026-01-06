@@ -2,249 +2,47 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>BOARD IN OUT – SYSTEM</title>
-<style>
-body{font-family:Arial;background:#f4f6f9;padding:20px}
-
-/* LOGIN */
-.login{
-  height:100vh;display:flex;
-  align-items:center;justify-content:center
-}
-.login-box{
-  background:white;padding:30px;
-  border-radius:10px;width:320px;
-  box-shadow:0 4px 12px rgba(0,0,0,.15);
-  text-align:center
-}
-.login-box input{
-  width:100%;padding:12px;
-  font-size:16px;margin-bottom:12px
-}
-.login-box button{
-  width:100%;padding:12px;
-  font-size:16px;background:#0b3c5d;
-  color:white;border:none;border-radius:6px
-}
-
-/* HEADER */
-.header{
-  display:flex;justify-content:space-between;
-  align-items:flex-start;background:#0b3c5d;
-  color:white;padding:10px 15px;
-  margin:-20px -20px 20px -20px
-}
-.header-right{text-align:right}
-.header-right .user{font-size:13px;margin-bottom:5px}
-.header-right button{
-  background:#e74c3c;color:white;
-  border:none;padding:6px 10px;
-  border-radius:4px;cursor:pointer
-}
-
-/* MAIN */
-input{font-size:22px;padding:8px;width:360px}
-table{width:100%;border-collapse:collapse;background:#fff;margin-top:15px}
-th,td{border:1px solid #ccc;padding:8px;text-align:center}
-th{background:#0b3c5d;color:#fff}
-.status-in{color:green;font-weight:bold}
-.status-out{color:red;font-weight:bold}
-
-.actions{margin-top:15px}
-.actions button{
-  padding:8px 12px;border:none;
-  border-radius:5px;margin-right:10px;
-  cursor:pointer
-}
-.btn-csv{background:#0b3c5d;color:white}
-.btn-reset{background:#e74c3c;color:white}
-</style>
+<title>Login</title>
 </head>
 
 <body>
+<h3>Login</h3>
+<input id="u" placeholder="username"><br><br>
+<input id="p" type="password" placeholder="password"><br><br>
+<button onclick="login()">LOGIN</button>
 
-<!-- LOGIN -->
-<div id="loginPage" class="login">
-  <div class="login-box">
-    <h2>Login</h2>
-    <input id="loginUser" placeholder="Username">
-    <input id="loginPass" type="password" placeholder="Password">
-    <button onclick="login()">Login</button>
-  </div>
-</div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-<!-- MAIN -->
-<div id="mainPage" style="display:none">
-
-  <div class="header">
-    <div>BOARD IN OUT – SYSTEM</div>
-    <div class="header-right">
-      <div class="user">
-        User : <b id="currentUser"></b><br>
-        Role : <b id="currentRole"></b>
-      </div>
-      <button onclick="logout()">Logout</button>
-    </div>
-  </div>
-
-  <input id="qr" placeholder="Scan QR here">
-
-  <p>Status : <span id="status" class="status-out">BOARD OUT</span></p>
-
-  <table>
-    <thead>
-      <tr>
-        <th>S.No</th>
-        <th>Board Name</th>
-        <th>IN Time</th>
-        <th>OUT Time</th>
-        <th>Total</th>
-        <th>User</th>
-      </tr>
-    </thead>
-    <tbody id="history"></tbody>
-  </table>
-
-  <div class="actions">
-    <button class="btn-csv" onclick="downloadCSV()">Download CSV</button>
-    <button id="resetBtn" class="btn-reset" onclick="fullReset()">RESET</button>
-  </div>
-
-</div>
-
-<script>
-/* ===== USERS ===== */
-const USERS = {
-  "francis.prabhakaran": { pass:"francis", role:"ADMIN" },
-  "sainudeen.moideen":   { pass:"sainu",   role:"LOCAL" }
+const firebaseConfig = {
+  apiKey: "AIzaSyAVqU1MUpgswj1c32Um4hIYfeKUTJswlCk",
+  authDomain: "qr-board-tracking.firebaseapp.com",
+  databaseURL: "https://qr-board-tracking-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "qr-board-tracking"
 };
 
-let loggedUser = "";
-let loggedRole = "";
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-/* ===== LOGIN ===== */
-function login(){
-  const u = loginUser.value.trim();
-  const p = loginPass.value.trim();
+window.login = async () => {
+  const u = document.getElementById("u").value;
+  const p = document.getElementById("p").value;
 
-  if(!USERS[u] || USERS[u].pass !== p){
-    alert("Invalid Username or Password");
+  const snap = await get(ref(db, "users/" + u));
+
+  if (!snap.exists()) {
+    alert("User not found");
     return;
   }
 
-  loggedUser = u;
-  loggedRole = USERS[u].role;
+  if (snap.val().password !== p) {
+    alert("Wrong password");
+    return;
+  }
 
-  loginPage.style.display = "none";
-  mainPage.style.display  = "block";
-
-  currentUser.innerText = loggedUser;
-  currentRole.innerText = loggedRole;
-
-  resetBtn.style.display = (loggedRole === "ADMIN") ? "inline-block" : "none";
-
-  setTimeout(()=>document.getElementById("qr").focus(),100);
-}
-
-/* ===== LOGOUT ===== */
-function logout(){
-  if(!confirm("Logout now?")) return;
-  loggedUser=""; loggedRole="";
-  mainPage.style.display="none";
-  loginPage.style.display="flex";
-  loginUser.value=""; loginPass.value="";
-}
-
-/* ===== CORE LOGIC (ORIGINAL WORKING FLOW) ===== */
-let inside=false;
-let activeQR="";
-let activeIndex=-1;
-let logs=[];
-
-function now(){ return new Date(); }
-function fmt(t){ return t ? t.toLocaleString() : "-"; }
-
-function diff(a,b){
-  if(!a||!b) return "-";
-  let s=Math.floor((b-a)/1000);
-  let h=String(Math.floor(s/3600)).padStart(2,"0");
-  let m=String(Math.floor((s%3600)/60)).padStart(2,"0");
-  let ss=String(s%60).padStart(2,"0");
-  return `${h}:${m}:${ss}`;
-}
-
-function render(){
-  let h="";
-  logs.forEach((r,i)=>{
-    h+=`<tr>
-      <td>${i+1}</td>
-      <td>${r.qr}</td>
-      <td>${fmt(r.in)}</td>
-      <td>${fmt(r.out)}</td>
-      <td>${diff(r.in,r.out)}</td>
-      <td>${r.user}</td>
-    </tr>`;
-  });
-  document.getElementById("history").innerHTML = h;
-}
-
-/* ===== QR HANDLER (FINAL SAFE VERSION) ===== */
-document.addEventListener("DOMContentLoaded", ()=>{
-  const qrInput = document.getElementById("qr");
-  const statusEl = document.getElementById("status");
-
-  qrInput.addEventListener("keyup", e=>{
-    if(e.key !== "Enter") return;
-
-    const data = qrInput.value.trim();
-    if(!data) return;
-
-    const t = now();
-
-    if(!inside){
-      inside=true;
-      activeQR=data;
-      logs.push({ user:loggedUser, qr:data, in:t, out:null });
-      activeIndex=logs.length-1;
-      statusEl.innerHTML="<span class='status-in'>BOARD IN</span>";
-      render();
-    }
-    else if(data === activeQR){
-      inside=false;
-      logs[activeIndex].out=t;
-      statusEl.innerHTML="<span class='status-out'>BOARD OUT</span>";
-      render();
-      activeQR=""; activeIndex=-1;
-    }else{
-      alert("Wrong QR scanned. Scan same board again.");
-    }
-
-    qrInput.value="";
-  });
-});
-
-/* ===== CSV ===== */
-function downloadCSV(){
-  if(!logs.length) return;
-  let csv="SNO,BOARD,IN,OUT,TOTAL,USER\n";
-  logs.forEach((r,i)=>{
-    csv+=`${i+1},${r.qr},${fmt(r.in)},${fmt(r.out)},${diff(r.in,r.out)},${r.user}\n`;
-  });
-  let a=document.createElement("a");
-  a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);
-  a.download="qr_history.csv";
-  a.click();
-}
-
-/* ===== RESET (ADMIN ONLY) ===== */
-function fullReset(){
-  if(loggedRole!=="ADMIN") return;
-  if(!confirm("RESET all history?")) return;
-  inside=false; activeQR=""; activeIndex=-1; logs=[];
-  document.getElementById("status").innerHTML="<span class='status-out'>BOARD OUT</span>";
-  document.getElementById("history").innerHTML="";
-}
+  alert("LOGIN SUCCESS");
+};
 </script>
-
 </body>
 </html>
