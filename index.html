@@ -1,199 +1,250 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>QR Board Tracking</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <style>
-    body { font-family: Arial; background:#f4f4f4; margin:0; padding:10px; }
-    h2 { margin-top:0 }
-    input, button { padding:8px; margin:4px 0; width:100%; }
-    table { width:100%; border-collapse: collapse; margin-top:10px; }
-    th, td { border:1px solid #999; padding:6px; font-size:14px; }
-    th { background:#ddd; }
-    .hidden { display:none }
-    .admin { background:#ffe0e0; padding:10px; margin-top:10px; }
-    .box { background:#fff; padding:10px; margin-top:10px; border-radius:6px; }
-  </style>
+<meta charset="UTF-8">
+<title>BOARD IN OUT – SYSTEM</title>
+<style>
+body{font-family:Arial;background:#f4f6f9;padding:20px}
+
+/* LOGIN */
+.login{
+  height:100vh;display:flex;
+  align-items:center;justify-content:center
+}
+.login-box{
+  background:white;padding:30px;
+  border-radius:10px;width:320px;
+  box-shadow:0 4px 12px rgba(0,0,0,.15);
+  text-align:center
+}
+.login-box input{
+  width:100%;padding:12px;
+  font-size:16px;margin-bottom:12px
+}
+.login-box button{
+  width:100%;padding:12px;
+  font-size:16px;background:#0b3c5d;
+  color:white;border:none;border-radius:6px
+}
+
+/* HEADER */
+.header{
+  display:flex;justify-content:space-between;
+  align-items:flex-start;background:#0b3c5d;
+  color:white;padding:10px 15px;
+  margin:-20px -20px 20px -20px
+}
+.header-right{text-align:right}
+.header-right .user{font-size:13px;margin-bottom:5px}
+.header-right button{
+  background:#e74c3c;color:white;
+  border:none;padding:6px 10px;
+  border-radius:4px;cursor:pointer
+}
+
+/* MAIN */
+input{font-size:22px;padding:8px;width:360px}
+table{width:100%;border-collapse:collapse;background:#fff;margin-top:15px}
+th,td{border:1px solid #ccc;padding:8px;text-align:center}
+th{background:#0b3c5d;color:#fff}
+.status-in{color:green;font-weight:bold}
+.status-out{color:red;font-weight:bold}
+
+.actions{margin-top:15px}
+.actions button{
+  padding:8px 12px;border:none;
+  border-radius:5px;margin-right:10px;
+  cursor:pointer
+}
+.btn-csv{background:#0b3c5d;color:white}
+.btn-reset{background:#e74c3c;color:white}
+</style>
 </head>
+
 <body>
 
-<h2>QR Board Tracking</h2>
-
 <!-- LOGIN -->
-<div id="loginBox" class="box">
-  <h3>Login</h3>
-  <input id="username" placeholder="Username">
-  <input id="password" type="password" placeholder="Password">
-  <button onclick="login()">Login</button>
+<div id="loginPage" class="login">
+  <div class="login-box">
+    <h2>Login</h2>
+    <input id="loginUser" placeholder="Username">
+    <input id="loginPass" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+  </div>
 </div>
 
 <!-- MAIN -->
-<div id="mainBox" class="hidden">
+<div id="mainPage" style="display:none">
 
-  <div class="box">
-    <b>Logged in as:</b> <span id="who"></span>
-    <button onclick="logout()">Logout</button>
+  <div class="header">
+    <div>BOARD IN OUT – SYSTEM</div>
+    <div class="header-right">
+      <div class="user">
+        User : <b id="currentUser"></b><br>
+        Role : <b id="currentRole"></b>
+      </div>
+      <button onclick="logout()">Logout</button>
+    </div>
   </div>
 
-  <!-- ADMIN PANEL -->
-  <div id="adminPanel" class="admin hidden">
-    <h3>Admin Panel</h3>
-    <input id="newUser" placeholder="New username">
-    <input id="newPass" placeholder="New password">
-    <button onclick="addUser()">Add User</button>
-    <br><br>
-    <input id="delUser" placeholder="Username to delete">
-    <button onclick="removeUser()">Remove User</button>
-  </div>
+  <input id="qr" placeholder="Scan QR here">
 
-  <!-- SCAN -->
-  <div class="box">
-    <h3>QR Scan (paste code)</h3>
-    <input id="qrInput" placeholder="QR code value">
-    <button onclick="scanIn()">IN</button>
-    <button onclick="scanOut()">OUT</button>
-  </div>
+  <p>Status : <span id="status" class="status-out">BOARD OUT</span></p>
 
-  <!-- STATUS -->
-  <div class="box">
-    <h3>Status (Live)</h3>
-    <table>
-      <thead>
-        <tr><th>Board</th><th>Status</th><th>User</th><th>Time</th></tr>
-      </thead>
-      <tbody id="statusTable"></tbody>
-    </table>
-  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>S.No</th>
+        <th>Board Name</th>
+        <th>IN Time</th>
+        <th>OUT Time</th>
+        <th>Total</th>
+        <th>User</th>
+      </tr>
+    </thead>
+    <tbody id="history"></tbody>
+  </table>
 
-  <!-- HISTORY -->
-  <div class="box">
-    <h3>History</h3>
-    <table>
-      <thead>
-        <tr><th>Board</th><th>Action</th><th>User</th><th>Time</th></tr>
-      </thead>
-      <tbody id="historyTable"></tbody>
-    </table>
+  <div class="actions">
+    <button class="btn-csv" onclick="downloadCSV()">Download CSV</button>
+    <button id="resetBtn" class="btn-reset" onclick="fullReset()">RESET</button>
   </div>
 
 </div>
 
 <script>
-/* ================= FIREBASE CONFIG ================= */
-const firebaseConfig = {
-  apiKey: "AIzaSyAVQUMUpgswjc32Um4hIYfeK",
-  authDomain: "qr-board-tracking.firebaseapp.com",
-  databaseURL: "https://qr-board-tracking-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "qr-board-tracking",
-  storageBucket: "qr-board-tracking.appspot.com",
-  messagingSenderId: "660301272276",
-  appId: "1:660301272276:web:a78bbb57c78174e3471741"
+/* ===== USERS ===== */
+const USERS = {
+  "francis.prabhakaran": { pass:"francis", role:"ADMIN" },
+  "sainudeen.moideen":   { pass:"sainu",   role:"LOCAL" }
 };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+let loggedUser = "";
+let loggedRole = "";
 
-/* ================= GLOBAL ================= */
-let currentUser = "";
-let isAdmin = false;
-
-/* ================= LOGIN ================= */
+/* ===== LOGIN ===== */
 function login(){
-  const u = username.value.trim();
-  const p = password.value.trim();
+  const u = loginUser.value.trim();
+  const p = loginPass.value.trim();
 
-  if(u==="admin" && p==="francis.prabhakaran"){
-    isAdmin = true;
-    successLogin(u);
+  if(!USERS[u] || USERS[u].pass !== p){
+    alert("Invalid Username or Password");
     return;
   }
 
-  db.ref("users/"+u).once("value", s=>{
-    if(s.exists() && s.val().password===p){
-      successLogin(u);
-    } else {
-      alert("Invalid login");
-    }
-  });
+  loggedUser = u;
+  loggedRole = USERS[u].role;
+
+  loginPage.style.display = "none";
+  mainPage.style.display  = "block";
+
+  currentUser.innerText = loggedUser;
+  currentRole.innerText = loggedRole;
+
+  resetBtn.style.display = (loggedRole === "ADMIN") ? "inline-block" : "none";
+
+  setTimeout(()=>document.getElementById("qr").focus(),100);
 }
 
-function successLogin(u){
-  currentUser = u;
-  loginBox.classList.add("hidden");
-  mainBox.classList.remove("hidden");
-  who.innerText = u + (isAdmin ? " (ADMIN)" : "");
-  if(isAdmin) adminPanel.classList.remove("hidden");
-}
-
+/* ===== LOGOUT ===== */
 function logout(){
-  location.reload();
+  if(!confirm("Logout now?")) return;
+  loggedUser=""; loggedRole="";
+  mainPage.style.display="none";
+  loginPage.style.display="flex";
+  loginUser.value=""; loginPass.value="";
 }
 
-/* ================= ADMIN ================= */
-function addUser(){
-  if(!isAdmin) return;
-  db.ref("users/"+newUser.value).set({
-    password: newPass.value
+/* ===== CORE LOGIC (ORIGINAL WORKING FLOW) ===== */
+let inside=false;
+let activeQR="";
+let activeIndex=-1;
+let logs=[];
+
+function now(){ return new Date(); }
+function fmt(t){ return t ? t.toLocaleString() : "-"; }
+
+function diff(a,b){
+  if(!a||!b) return "-";
+  let s=Math.floor((b-a)/1000);
+  let h=String(Math.floor(s/3600)).padStart(2,"0");
+  let m=String(Math.floor((s%3600)/60)).padStart(2,"0");
+  let ss=String(s%60).padStart(2,"0");
+  return `${h}:${m}:${ss}`;
+}
+
+function render(){
+  let h="";
+  logs.forEach((r,i)=>{
+    h+=`<tr>
+      <td>${i+1}</td>
+      <td>${r.qr}</td>
+      <td>${fmt(r.in)}</td>
+      <td>${fmt(r.out)}</td>
+      <td>${diff(r.in,r.out)}</td>
+      <td>${r.user}</td>
+    </tr>`;
   });
-  alert("User added");
+  document.getElementById("history").innerHTML = h;
 }
 
-function removeUser(){
-  if(!isAdmin) return;
-  db.ref("users/"+delUser.value).remove();
-  alert("User removed");
-}
+/* ===== QR HANDLER (FINAL SAFE VERSION) ===== */
+document.addEventListener("DOMContentLoaded", ()=>{
+  const qrInput = document.getElementById("qr");
+  const statusEl = document.getElementById("status");
 
-/* ================= SCAN ================= */
-function scanIn(){
-  updateBoard("IN");
-}
-function scanOut(){
-  updateBoard("OUT");
-}
+  qrInput.addEventListener("keyup", e=>{
+    if(e.key !== "Enter") return;
 
-function updateBoard(action){
-  const code = qrInput.value.trim();
-  if(!code) return;
+    const data = qrInput.value.trim();
+    if(!data) return;
 
-  const time = new Date().toLocaleString();
+    const t = now();
 
-  db.ref("status/"+code).set({
-    status: action,
-    user: currentUser,
-    time: time
-  });
+    if(!inside){
+      inside=true;
+      activeQR=data;
+      logs.push({ user:loggedUser, qr:data, in:t, out:null });
+      activeIndex=logs.length-1;
+      statusEl.innerHTML="<span class='status-in'>BOARD IN</span>";
+      render();
+    }
+    else if(data === activeQR){
+      inside=false;
+      logs[activeIndex].out=t;
+      statusEl.innerHTML="<span class='status-out'>BOARD OUT</span>";
+      render();
+      activeQR=""; activeIndex=-1;
+    }else{
+      alert("Wrong QR scanned. Scan same board again.");
+    }
 
-  db.ref("history").push({
-    board: code,
-    action: action,
-    user: currentUser,
-    time: time
-  });
-
-  qrInput.value="";
-}
-
-/* ================= LIVE STATUS ================= */
-db.ref("status").on("value", snap=>{
-  statusTable.innerHTML="";
-  snap.forEach(s=>{
-    const d = s.val();
-    statusTable.innerHTML +=
-      `<tr><td>${s.key}</td><td>${d.status}</td><td>${d.user}</td><td>${d.time}</td></tr>`;
+    qrInput.value="";
   });
 });
 
-/* ================= HISTORY ================= */
-db.ref("history").limitToLast(50).on("child_added", s=>{
-  const d = s.val();
-  historyTable.innerHTML =
-    `<tr><td>${d.board}</td><td>${d.action}</td><td>${d.user}</td><td>${d.time}</td></tr>`
-    + historyTable.innerHTML;
-});
+/* ===== CSV ===== */
+function downloadCSV(){
+  if(!logs.length) return;
+  let csv="SNO,BOARD,IN,OUT,TOTAL,USER\n";
+  logs.forEach((r,i)=>{
+    csv+=`${i+1},${r.qr},${fmt(r.in)},${fmt(r.out)},${diff(r.in,r.out)},${r.user}\n`;
+  });
+  let a=document.createElement("a");
+  a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);
+  a.download="qr_history.csv";
+  a.click();
+}
+
+/* ===== RESET (ADMIN ONLY) ===== */
+function fullReset(){
+  if(loggedRole!=="ADMIN") return;
+  if(!confirm("RESET all history?")) return;
+  inside=false; activeQR=""; activeIndex=-1; logs=[];
+  document.getElementById("status").innerHTML="<span class='status-out'>BOARD OUT</span>";
+  document.getElementById("history").innerHTML="";
+}
 </script>
+
 </body>
 </html>
